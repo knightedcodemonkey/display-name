@@ -301,4 +301,128 @@ describe('@knighted/displayName', () => {
     `.replace(/\s/g, ''),
     )
   })
+
+  it('works with memo and types', async () => {
+    const src = `
+      const AudienceRefinementComp = memo(
+        ({message}: MessageCompProps<AudienceRefinementMessage>) => {
+          const selectedSuggestion = useChatStore(state => state.suggestion);
+          const setSuggestion = useChatStore(state => state.setSuggestion);
+
+          const messageSuggestion = useMemo(
+            () => message.data?.refined_suggestion.suggestion,
+            [message]
+          );
+
+          const isSelected = useMemo(() => {
+            return (
+              selectedSuggestion?.messageId === message.id &&
+              messageSuggestion?.title === selectedSuggestion?.data.title
+            );
+          }, [message, selectedSuggestion, messageSuggestion]);
+
+          const classes = useMemo(() => {
+            return clsx(styles.suggestions, {
+              [styles.suggestionsCompact]: !!selectedSuggestion,
+            });
+          }, [selectedSuggestion]);
+
+          const agentName = message.data!.agent_name;
+          const iconKey = agentIconMap[agentName] || 'search';
+          return (
+            <div key={message.id}>
+              <Message>
+                <Message.Author
+                  withAvatar
+                  icon={iconKey}
+                  randomizeAvatar
+                  avatarSize={12}
+                  name={formatAgentName(agentName)}
+                />
+                <Message.Body>
+                  {message.data?.refined_suggestion.message}
+                </Message.Body>
+              </Message>
+              <div className={classes}>
+                {messageSuggestion && (
+                  <Suggestion
+                    action={() => setSuggestion(message.id, messageSuggestion)}
+                    aria-selected={isSelected}
+                    key={messageSuggestion.title}
+                    selected={isSelected}
+                  >
+                    <Suggestion.Header>{messageSuggestion.title}</Suggestion.Header>
+                    {messageSuggestion.reasoning}
+                  </Suggestion>
+                )}
+              </div>
+            </div>
+          );
+        }
+      );
+    `
+    const code = await modify(src)
+    assert.equal(
+      code.replace(/\s/g, ''),
+      `
+        const AudienceRefinementComp = memo(
+          ({message}: MessageCompProps<AudienceRefinementMessage>) => {
+            const selectedSuggestion = useChatStore(state => state.suggestion);
+            const setSuggestion = useChatStore(state => state.setSuggestion);
+
+            const messageSuggestion = useMemo(
+              () => message.data?.refined_suggestion.suggestion,
+              [message]
+            );
+
+            const isSelected = useMemo(() => {
+              return (
+                selectedSuggestion?.messageId === message.id &&
+                messageSuggestion?.title === selectedSuggestion?.data.title
+              );
+            }, [message, selectedSuggestion, messageSuggestion]);
+
+            const classes = useMemo(() => {
+              return clsx(styles.suggestions, {
+                [styles.suggestionsCompact]: !!selectedSuggestion,
+              });
+            }, [selectedSuggestion]);
+
+            const agentName = message.data!.agent_name;
+            const iconKey = agentIconMap[agentName] || 'search';
+            return (
+              <div key={message.id}>
+                <Message>
+                  <Message.Author
+                    withAvatar
+                    icon={iconKey}
+                    randomizeAvatar
+                    avatarSize={12}
+                    name={formatAgentName(agentName)}
+                  />
+                  <Message.Body>
+                    {message.data?.refined_suggestion.message}
+                  </Message.Body>
+                </Message>
+                <div className={classes}>
+                  {messageSuggestion && (
+                    <Suggestion
+                      action={() => setSuggestion(message.id, messageSuggestion)}
+                      aria-selected={isSelected}
+                      key={messageSuggestion.title}
+                      selected={isSelected}
+                    >
+                      <Suggestion.Header>{messageSuggestion.title}</Suggestion.Header>
+                      {messageSuggestion.reasoning}
+                    </Suggestion>
+                  )}
+                </div>
+              </div>
+            );
+          }
+        );
+        AudienceRefinementComp.displayName = 'AudienceRefinementComp';
+      `.replace(/\s/g, ''),
+    )
+  })
 })
