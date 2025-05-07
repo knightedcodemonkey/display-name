@@ -8,39 +8,33 @@ A codemod to add `displayName` to React function components.
 
 - Works with TypeScript or JavaScript source code.
 - Quickly fix [`react/display-name`](https://github.com/jsx-eslint/eslint-plugin-react/blob/master/docs/rules/display-name.md) lint errors.
-- Pass file names or strings.
+- Pass a path to a file, or a string.
 
 ## Example
 
-**file.tsx**
-
-```tsx
-import React, { memo } from 'react'
-
-const Foo = () => {
-  return <div>foo</div>
-}
-
-const Bar = function Bar(props) {
-  return <span>stuff</span>
-}
-
-const Baz = memo(() => {
-  return <p>baz</p>
-})
-```
-
-**codemod.ts**
-
 ```ts
-import { transformFile } from '@knighted/display-name'
+import { modify } from '@knighted/display-name'
 
-const codemod = await transformFile('./file.tsx')
+const codemod = await modify(`
+  import { memo } from 'react'
+
+  const Foo = () => {
+    return <div>foo</div>
+  }
+
+  const Bar = function Bar(props) {
+    return <span>stuff</span>
+  }
+
+  const Baz = memo(() => {
+    return <p>baz</p>
+  })
+`)
 
 console.log(codemod)
 
 /*
-import React, { memo } from 'react'
+import { memo } from 'react'
 
 const Foo = () => {
   return <div>foo</div>
@@ -48,7 +42,7 @@ const Foo = () => {
 Foo.displayName = 'Foo';
 
 const Bar = function Bar(props) {
-  return <span>stuff</span>
+  return <span>bar</span>
 }
 
 const Baz = memo(() => {
@@ -58,4 +52,10 @@ Baz.displayName = 'Baz';
 */
 ```
 
-Now optionally run it through your formatter, like [prettier](https://prettier.io/).
+You can also pass a filepath instead of a string:
+
+```ts
+import { modifyFile } from '@knighted/display-name'
+
+await modifyFile('/path/to/file.tsx')
+```
