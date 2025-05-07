@@ -25,6 +25,7 @@ export default tseslint.config(
     files: ['test/fixtures/**/*.tsx'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',
+      'n/no-missing-import': 'off',
     },
   },
   {

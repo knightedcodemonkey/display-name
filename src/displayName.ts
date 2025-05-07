@@ -2,7 +2,13 @@ import { readFile } from 'node:fs/promises'
 
 import MagicString from 'magic-string'
 import { asyncAncestorWalk, ancestorWalk, walk } from '@knighted/walk'
-import { parseSync, type Node, type FunctionBody, type Expression } from 'oxc-parser'
+import {
+  parseSync,
+  type Node,
+  type FunctionBody,
+  type Expression,
+  type VariableDeclarator,
+} from 'oxc-parser'
 
 type Options = {
   requirePascal?: boolean
@@ -55,6 +61,30 @@ const hasJsx = async (body: FunctionBody | Expression) => {
 
   return found
 }
+/**
+ * Useful for preventing mapped JSX lists inside functions from creating
+ * a displayName when inside a named function.
+ *
+ * A simpler fix would be to add the found named function to `foundDisplayNames`
+ * but that would prevent reusing a displayName for named functions
+ * (which seems like a bad practice overall).
+ */
+const createsNamedReactFunction = (declarator: VariableDeclarator) => {
+  if (declarator.init) {
+    if (declarator.init.type === 'FunctionExpression' && declarator.init.id) {
+      return true
+    }
+
+    if (
+      declarator.init.type === 'CallExpression' &&
+      declarator.init.arguments.some(arg => arg.type === 'FunctionExpression' && arg.id)
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
 const defaultOptions = {
   requirePascal: true,
   insertSemicolon: true,
@@ -75,8 +105,9 @@ const modify = async (source: string, options: Options = defaultOptions) => {
         case 'ArrowFunctionExpression':
           {
             const { body, id } = node
+            const isReact = !!body && (await hasJsx(body))
 
-            if (!id && body && (await hasJsx(body))) {
+            if (!id && isReact) {
               /**
                * If the function expression is not named,
                * use the varible name to set the displayName.
@@ -91,7 +122,8 @@ const modify = async (source: string, options: Options = defaultOptions) => {
                 if (
                   declarator.type === 'VariableDeclarator' &&
                   declarator.id.type === 'Identifier' &&
-                  !foundDisplayNames.includes(declarator.id.name)
+                  !foundDisplayNames.includes(declarator.id.name) &&
+                  !createsNamedReactFunction(declarator)
                 ) {
                   const { name } = declarator.id
                   const declaration = ancestors[declaratorIndex - 1]
