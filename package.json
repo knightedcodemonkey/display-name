@@ -1,6 +1,6 @@
 {
   "name": "@knighted/display-name",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "description": "Codemod to add React displayName properties to function components.",
   "type": "module",
   "exports": {

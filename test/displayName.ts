@@ -256,4 +256,31 @@ describe('@knighted/displayName', () => {
     `.replace(/\s/g, ''),
     )
   })
+
+  it('works with multiple declarations', async () => {
+    const src = `
+      const A = () => <>a</>,
+      B = () => <>b</>;
+
+      const C = function() {
+        return <>c</>
+      }
+    `
+    const code = await modify(src)
+
+    assert.equal(
+      code.replace(/\s/g, ''),
+      `
+        const A = () => <>a</>,
+        B = () => <>b</>;
+        A.displayName = 'A';
+        B.displayName = 'B';
+
+        const C = function() {
+          return <>c</>
+        }
+        C.displayName = 'C';
+    `.replace(/\s/g, ''),
+    )
+  })
 })

@@ -101,7 +101,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
                     (!opts.requirePascal || pascal.test(name))
                   ) {
                     code.appendRight(
-                      declarator.end + 1,
+                      declaration.end,
                       `\n${name}.displayName = '${name}'${opts.insertSemicolon ? ';' : ''}`,
                     )
                   }
