@@ -104,6 +104,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
                       declaration.end,
                       `\n${name}.displayName = '${name}'${opts.insertSemicolon ? ';' : ''}`,
                     )
+                    foundDisplayNames.push(name)
                   }
                 }
               }

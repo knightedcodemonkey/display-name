@@ -283,4 +283,22 @@ describe('@knighted/displayName', () => {
     `.replace(/\s/g, ''),
     )
   })
+
+  it('works with memo and forwardRef', async () => {
+    const src = `
+      const Wrapped = memo(forwardRef((props,ref) => {
+        return <p>wrapped</p>
+      }))
+    `
+    const code = await modify(src)
+    assert.equal(
+      code.replace(/\s/g, ''),
+      `
+      const Wrapped = memo(forwardRef((props,ref) => {
+        return <p>wrapped</p>
+      }))
+      Wrapped.displayName = 'Wrapped';
+    `.replace(/\s/g, ''),
+    )
+  })
 })
