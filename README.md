@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/knightedcodemonkey/display-name/actions/workflows/ci.yml/badge.svg)
 [![codecov](https://codecov.io/gh/knightedcodemonkey/display-name/graph/badge.svg?token=R2GF8WJmXE)](https://codecov.io/gh/knightedcodemonkey/display-name)
-[![NPM version](https://img.shields.io/npm/v/@knighted/walk.svg)](https://www.npmjs.com/package/@knighted/display-name)
+[![NPM version](https://img.shields.io/npm/v/@knighted/display-name.svg)](https://www.npmjs.com/package/@knighted/display-name)
 
 A codemod to add `displayName` to React function components.
 
