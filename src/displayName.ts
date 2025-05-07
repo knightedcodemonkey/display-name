@@ -1,9 +1,15 @@
 import { readFile } from 'node:fs/promises'
 
-import { parseSync, type Node } from 'oxc-parser'
 import MagicString from 'magic-string'
 import { asyncAncestorWalk, ancestorWalk, walk } from '@knighted/walk'
+import { parseSync, type Node, type FunctionBody, type Expression } from 'oxc-parser'
 
+type Options = {
+  requirePascal?: boolean
+  insertSemicolon?: boolean
+}
+
+const pascal = /^[A-Z][a-zA-Z0-9]*$/
 const collectDisplayNames = async (node: Node) => {
   const foundDisplayNames: string[] = []
 
@@ -36,11 +42,31 @@ const collectDisplayNames = async (node: Node) => {
 
   return foundDisplayNames
 }
+const hasJsx = async (body: FunctionBody | Expression) => {
+  let found = false
 
-const transform = async (source: string) => {
+  await walk(body, {
+    enter(node) {
+      if (!found && (node.type === 'JSXElement' || node.type === 'JSXFragment')) {
+        found = true
+      }
+    },
+  })
+
+  return found
+}
+const defaultOptions = {
+  requirePascal: true,
+  insertSemicolon: true,
+} satisfies Options
+const modify = async (source: string, options: Options = defaultOptions) => {
   const ast = parseSync('file.tsx', source)
   const code = new MagicString(source)
   const foundDisplayNames = await collectDisplayNames(ast.program)
+  const opts = {
+    ...defaultOptions,
+    ...options,
+  }
 
   await asyncAncestorWalk(ast.program, {
     async enter(node, ancestors) {
@@ -50,40 +76,37 @@ const transform = async (source: string) => {
           {
             const { body, id } = node
 
-            if (body) {
-              await walk(body, {
-                enter(bodyNode) {
-                  switch (bodyNode.type) {
-                    case 'JSXElement':
-                    case 'JSXFragment':
-                      {
-                        if (!id) {
-                          /**
-                           * If the function expression is not named,
-                           * use the varible nameto set the displayName.
-                           */
-                          const declarator = ancestors.findLast(
-                            ancestor => ancestor.type === 'VariableDeclarator',
-                          )
+            if (!id && body && (await hasJsx(body))) {
+              /**
+               * If the function expression is not named,
+               * use the varible name to set the displayName.
+               */
+              const declaratorIndex = ancestors.findLastIndex(
+                ancestor => ancestor.type === 'VariableDeclarator',
+              )
 
-                          if (
-                            declarator &&
-                            declarator.id.type === 'Identifier' &&
-                            !foundDisplayNames.includes(declarator.id.name)
-                          ) {
-                            const name = declarator.id.name
+              if (declaratorIndex !== -1) {
+                const declarator = ancestors[declaratorIndex]
 
-                            code.appendRight(
-                              declarator.end,
-                              `\n${name}.displayName = '${name}';`,
-                            )
-                          }
-                        }
-                      }
-                      break
+                if (
+                  declarator.type === 'VariableDeclarator' &&
+                  declarator.id.type === 'Identifier' &&
+                  !foundDisplayNames.includes(declarator.id.name)
+                ) {
+                  const { name } = declarator.id
+                  const declaration = ancestors[declaratorIndex - 1]
+
+                  if (
+                    declaration.type === 'VariableDeclaration' &&
+                    (!opts.requirePascal || pascal.test(name))
+                  ) {
+                    code.appendRight(
+                      declarator.end + 1,
+                      `\n${name}.displayName = '${name}'${opts.insertSemicolon ? ';' : ''}`,
+                    )
                   }
-                },
-              })
+                }
+              }
             }
           }
           break
@@ -93,8 +116,9 @@ const transform = async (source: string) => {
 
   return code.toString()
 }
-const transformFile = async (filename: string) => {
-  return transform((await readFile(filename, 'utf-8')).toString())
+const modifyFile = async (filename: string, options: Options = defaultOptions) => {
+  return modify((await readFile(filename, 'utf-8')).toString(), options)
 }
 
-export { transform, transformFile }
+export { modify, modifyFile }
+export type { Options }

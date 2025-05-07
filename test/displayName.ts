@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 
-import { transform, transformFile } from '../src/displayName.js'
+import { modify, modifyFile } from '../src/displayName.js'
 
 describe('@knighted/displayName', () => {
   it('transforms source by adding a react displayName', async () => {
@@ -38,7 +38,7 @@ describe('@knighted/displayName', () => {
       export default Foo
       export { Bar, Baz }
     `
-    const code = await transform(source)
+    const code = await modify(source)
 
     assert.equal(
       code.replace(/\s/g, ''),
@@ -97,7 +97,7 @@ describe('@knighted/displayName', () => {
       export default Foo
       export { Bar }
     `
-    const code = await transform(source)
+    const code = await modify(source)
 
     assert.equal(
       code.replace(/\s/g, ''),
@@ -122,7 +122,7 @@ describe('@knighted/displayName', () => {
 
   it('transforms files', async () => {
     const filename = resolve(import.meta.dirname, './fixtures/react.tsx')
-    const code = await transformFile(filename)
+    const code = await modifyFile(filename)
 
     assert.equal(
       code.replace(/\s/g, ''),
@@ -149,6 +149,110 @@ describe('@knighted/displayName', () => {
         Qux.displayName = 'Qux';
 
         export { Foo, Bar, Baz, Qux }
+    `.replace(/\s/g, ''),
+    )
+  })
+
+  it('does not repeat displayName', async () => {
+    const src = `
+      const Foo = (props) => {
+        return (
+          <div>
+            {props.foo} bar
+            <p>baz</p>
+          </div>
+        )
+      }
+    `
+    const code = await modify(src)
+    assert.equal(
+      code.replace(/\s/g, ''),
+      `
+      const Foo = (props) => {
+        return (
+          <div>
+            {props.foo} bar
+            <p>baz</p>
+          </div>
+        )
+      }
+      Foo.displayName = 'Foo';
+    `.replace(/\s/g, ''),
+    )
+  })
+
+  it('preserves ending semicolon', async () => {
+    const src = `
+      const Foo = (props) => {
+        return <div>foo</div>
+      };
+    `
+    const code = await modify(src)
+    assert.equal(
+      code.replace(/\s/g, ''),
+      `
+      const Foo = (props) => {
+        return <div>foo</div>
+      };
+      Foo.displayName = 'Foo';
+    `.replace(/\s/g, ''),
+    )
+  })
+
+  it('requires pascal names by default', async () => {
+    const src = `
+      export const createColumns = (
+        teams: Team[],
+        control: Control<SSOConfigFormData>,
+        handleFieldChange: HandleFieldChangeFn,
+      ) => [
+        columnHelper.accessor(SSOConfigMappingKeys.teamId, {
+          id: SSOConfigMappingKeys.teamId,
+          header: 'GrowthLoop Team',
+          cell: ({ row }) => (
+            <Select.FormField
+              control={control}
+              name={\`mappings.\${row.index}.teamId\` as const}
+              clearable={false}
+              defaultValue={row.original.teamId}
+              onValueChange={() => {
+                handleFieldChange()
+              }}
+            >
+              {teams.map(option => (
+                <Select.Item key={option.value} value={option.value}>
+                  {option.label}
+                </Select.Item>
+              ))}
+            </Select.FormField>
+          ),
+        }),
+      ]
+    `
+    const code = await modify(src)
+
+    // No modification should be made
+    assert.equal(code.replace(/\s/g, ''), src.replace(/\s/g, ''))
+  })
+
+  it('has some options', async () => {
+    const src = `
+      const foo = (props) => {
+        return <div>foo</div>
+      }
+    `
+    const code = await modify(src, {
+      requirePascal: false,
+      insertSemicolon: false,
+    })
+
+    assert.equal(
+      code.replace(/\s/g, ''),
+      `
+      const foo = (props) => {
+        return <div>foo</div>
+      }
+      foo.displayName = 'foo'
     `.replace(/\s/g, ''),
     )
   })
