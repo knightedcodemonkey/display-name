@@ -425,4 +425,12 @@ describe('@knighted/displayName', () => {
       `.replace(/\s/g, ''),
     )
   })
+
+  it('works with retyped memo, generics and named function expressions', async () => {
+    const file = resolve(import.meta.dirname, './fixtures/typed.tsx')
+    const code = await modifyFile(file)
+
+    assert.ok(code.indexOf("Items.displayName = 'Items'") === -1)
+    assert.ok(code.indexOf('displayName') === -1)
+  })
 })
