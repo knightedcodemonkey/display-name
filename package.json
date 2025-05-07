@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/knightedcodemonkey/display-name.git"
+    "url": "git+https://github.com/knightedcodemonkey/display-name.git"
   },
   "bugs": {
     "url": "https://github.com/knightedcodemonkey/display-name/issues"
