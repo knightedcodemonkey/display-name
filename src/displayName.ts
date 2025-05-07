@@ -75,12 +75,11 @@ const createsNamedReactFunction = (declarator: VariableDeclarator) => {
       return true
     }
 
-    if (declarator.init.type === 'CallExpression') {
-      if (
-        declarator.init.arguments.some(arg => arg.type === 'FunctionExpression' && arg.id)
-      ) {
-        return true
-      }
+    if (
+      declarator.init.type === 'CallExpression' &&
+      declarator.init.arguments.some(arg => arg.type === 'FunctionExpression' && arg.id)
+    ) {
+      return true
     }
   }
 
