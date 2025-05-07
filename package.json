@@ -1,5 +1,5 @@
 {
-  "name": "display-name",
+  "name": "@knighted/display-name",
   "version": "1.0.0-alpha.0",
   "description": "Codemod to add React displayName properties to function components.",
   "type": "module",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/knightedcodemonkey/display-name.git"
+    "url": "git+https://github.com/knightedcodemonkey/display-name.git"
   },
   "bugs": {
     "url": "https://github.com/knightedcodemonkey/display-name/issues"
