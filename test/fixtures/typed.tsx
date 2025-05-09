@@ -1,41 +1,27 @@
 import type { ReactNode } from 'react'
-import React, { useRef, useLayoutEffect, useState } from 'react'
-import { typedMemo } from './fake.js'
-import { useMultiComboBoxContext } from './fake'
-import { List, Item } from './fake.js'
+import React, { useRef, useLayoutEffect, useState, memo } from 'react'
 
 type ItemsProps<T> = {
-  children?: (props: { item: T; index: number; isSelected: boolean }) => ReactNode
+  hasMore?: boolean
 }
-
-const Other = function Other(props) {
+const typedMemo: <T>(c: T) => T = memo
+const Other = memo((props: { items: string[] }) => {
   return (
     <ul>
-      {props.items.map(item => {
-        ;<li>{item}</li>
-      })}
+      {props.items.map(item => (
+        <li>{item}</li>
+      ))}
     </ul>
   )
-}
-const Items = typedMemo(function Items<T>({ children }: ItemsProps<T>) {
-  const {
-    getMenuProps,
-    getItemProps,
-    filteredItems,
-    customItemsList,
-    selectedItems,
-    itemToString,
-    setItemsList,
-    loadItems,
-    inputValue,
-    isOpen,
-  } = useMultiComboBoxContext<T>()
-  const customLength = customItemsList.length
+})
+const Items = typedMemo(function Items<T>(props: ItemsProps<T>) {
   const ref = useRef<HTMLUListElement>(null)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(props.hasMore ?? true)
+  const items = ['a', 'b', 'c']
+  const items2 = ['d', 'e', 'f']
 
   useLayoutEffect(() => {
-    if (ref.current && isOpen && loadItems) {
+    if (ref.current) {
       const root = ref.current
       const target = root.querySelector(':last-child')
       const rootMargin = target ? `${target.clientHeight}px 0px 0px 0px` : '0px'
@@ -43,10 +29,7 @@ const Items = typedMemo(function Items<T>({ children }: ItemsProps<T>) {
         async entries => {
           for (const entry of entries) {
             if (entry.isIntersecting && hasMore) {
-              const { items, hasMore } = await loadItems(inputValue)
-
-              setHasMore(hasMore)
-              setItemsList(prevItems => Array.from(new Set([...prevItems, ...items])))
+              setHasMore(false)
             }
           }
         },
@@ -65,55 +48,22 @@ const Items = typedMemo(function Items<T>({ children }: ItemsProps<T>) {
         observer.disconnect()
       }
     }
-  }, [
-    ref,
-    isOpen,
-    // Create a new observer after filtering items
-    inputValue,
-    filteredItems,
-    hasMore,
-    setItemsList,
-    loadItems,
-  ])
+  }, [ref, hasMore])
 
   return (
-    <List {...getMenuProps({ ref })}>
-      {isOpen &&
-        customItemsList.map((item, index) => (
-          <Item
-            isLastCustom={index === customItemsList.length - 1}
-            isSelected={selectedItems.some(
-              selectedItem => itemToString(selectedItem) === item,
-            )}
-            key={`${item}-${index}`}
-            {...getItemProps({
-              item,
-              index,
-            })}
-          >
-            {itemToString(item)}
-          </Item>
-        ))}
-      {isOpen &&
-        filteredItems.map((item, index) => {
-          const isSelected = selectedItems.some(
-            selectedItem => itemToString(selectedItem) === itemToString(item),
-          )
-
-          return (
-            <Item
-              isSelected={isSelected}
-              key={`${itemToString(item)}-${index}`}
-              {...getItemProps({
-                item,
-                index: customLength + index,
-              })}
-            >
-              {children ? children({ item, index, isSelected }) : itemToString(item)}
-            </Item>
-          )
-        })}
-    </List>
+    <ul ref={ref}>
+      {items.map((item, index) => {
+        const isSelected = items2.includes(item)
+        return (
+          <li key={index} className={isSelected ? 'selected' : ''}>
+            {item}
+          </li>
+        )
+      })}
+      {items2.map((item, index) => {
+        return <li key={index}>{item}</li>
+      })}
+    </ul>
   )
 })
 

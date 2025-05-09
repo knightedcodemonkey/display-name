@@ -1,6 +1,7 @@
 import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import nodePlugin from 'eslint-plugin-n'
+import react from 'eslint-plugin-react'
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -22,8 +23,17 @@ export default tseslint.config(
     },
   },
   {
-    files: ['test/fixtures/**/*.tsx'],
+    files: ['test/fixtures/**/*.{js,tsx}'],
+    settings: {
+      react: {
+        version: '16.12.0',
+      },
+    },
+    plugins: {
+      react,
+    },
     rules: {
+      'react/display-name': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       'n/no-missing-import': 'off',
     },

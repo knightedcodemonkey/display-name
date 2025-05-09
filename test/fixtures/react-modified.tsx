@@ -20,6 +20,7 @@ const Qux = memo(() => {
     </div>
   )
 })
+Qux.displayName = 'Qux'
 
 const Quxx = memo(
   forwardRef<HTMLDivElement, object>((props, ref) => {
@@ -30,11 +31,13 @@ const Quxx = memo(
 const Ref = forwardRef<HTMLDivElement, object>((props, ref) => {
   return <div ref={ref}>ref</div>
 })
+Ref.displayName = 'Ref'
 
 const NestedMemo = () => {
   const NestedChild = memo(() => {
     return <div>nested</div>
   })
+  NestedChild.displayName = 'NestedChild'
 
   return <NestedChild />
 }
@@ -48,18 +51,22 @@ const NestedForwardRef = () => {
 const FuncExpr = memo(function () {
   return <div>func expr</div>
 })
+FuncExpr.displayName = 'FuncExpr'
 const NamedFuncExpr = memo(function NamedFuncExpr() {
   return <div>named func expr</div>
 })
 const NoJsx = memo(() => {
   return 'no jsx'
 })
+NoJsx.displayName = 'NoJsx'
 const ReactMemo = React.memo(() => {
   return <div>react memo</div>
 })
+ReactMemo.displayName = 'ReactMemo'
 const ReactForwardRef = React.forwardRef<HTMLDivElement, object>((props, ref) => {
   return <div ref={ref}>react forward ref</div>
 })
+ReactForwardRef.displayName = 'ReactForwardRef'
 const ReactForwardRefNested = React.memo(
   React.forwardRef<HTMLDivElement, object>((props, ref) => {
     return <div ref={ref}>react forward ref nested</div>
@@ -75,6 +82,7 @@ const NestedDisplayName = {
     return <div>nested display name</div>
   }),
 }
+NestedDisplayName.displayName = 'NestedDisplayName'
 NestedDisplayName.Nested.displayName = 'NestedDisplayName.Nested'
 
 const MissingNestedDisplayName = {
@@ -82,6 +90,7 @@ const MissingNestedDisplayName = {
     return <div>missing nested display name</div>
   }),
 }
+MissingNestedDisplayName.displayName = 'MissingNestedDisplayName'
 
 type ForwardRefObject = {
   forwardRef: (cb: (props: object, ref: object) => React.ReactNode) => React.ReactNode
@@ -119,6 +128,8 @@ const Mixed = memo(
 
 const A = memo(() => 'A'),
   B = forwardRef((props, ref) => `${props} ${ref}`)
+A.displayName = 'A'
+B.displayName = 'B'
 
 export {
   Foo,
