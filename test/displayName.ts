@@ -1,80 +1,100 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
-import { writeFile } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
 
-import { modify, modifyFile } from '../src/displayName.js'
+import { modifyFile } from '../src/displayName.js'
 
 describe('@knighted/displayName', () => {
-  it('transforms files', async () => {
-    const filename = resolve(import.meta.dirname, './fixtures/react.tsx')
-    const code = await modifyFile(filename)
+  it('transforms files', async t => {
+    const read = resolve(import.meta.dirname, './fixtures/react.tsx')
+    const write = resolve(import.meta.dirname, './fixtures/react-modified.tsx')
+    const code = await modifyFile(read)
 
-    await writeFile(resolve(import.meta.dirname, './fixtures/react-modified.tsx'), code)
-  })
+    t.after(async () => {
+      await rm(write, { force: true })
+    })
 
-  it.skip('ignores namespaced components with a displayName', async () => {
-    const source = `
-      const Foo = () => {
-        const [state, setState] = useState(0)
-        return <div>{state}</div>
-      }
+    await writeFile(write, code)
 
-      const Bar = function Bar(props) {
-        const Inner = () => <span>stuff</span>
-        return <><Inner /></>
-      }
-      Bar.Inner.displayName = 'Inner'
+    // Does not needlessly add displayName
+    assert.ok(code.indexOf("Foo.displayName = 'Foo'") === -1)
+    assert.ok(code.indexOf("NamedFuncExpr.displayName = 'NamedFuncExpr'") === -1)
 
-      export default Foo
-      export { Bar }
-    `
-    const code = await modify(source)
-
+    // Correctly identifies namespaced displayNames already present
     assert.equal(
-      code.replace(/\s/g, ''),
-      `
-      const Foo = () => {
-        const [state, setState] = useState(0)
-        return <div>{state}</div>
-      }
-      Foo.displayName = 'Foo';
-
-      const Bar = function Bar(props) {
-        const Inner = () => <span>stuff</span>
-        return <><Inner /></>
-      }
-      Bar.Inner.displayName = 'Inner'
-
-      export default Foo
-      export { Bar }
-    `.replace(/\s/g, ''),
+      [
+        ...code.matchAll(
+          /NestedDisplayName.Nested.displayName = 'NestedDisplayName.Nested'/g,
+        ),
+      ].length,
+      1,
     )
+    const { status: lint } = spawnSync('eslint', [write], { stdio: 'inherit' })
+    assert.equal(lint, 0)
+    const { status: types } = spawnSync(
+      'tsc',
+      ['--noEmit', '--project', 'test/tsconfig.json'],
+      { stdio: 'inherit' },
+    )
+    assert.equal(types, 0)
   })
 
-  it.skip('preserves ending semicolon', async () => {
-    const src = `
-      const Foo = (props) => {
-        return <div>foo</div>
-      };
-    `
-    const code = await modify(src)
-    assert.equal(
-      code.replace(/\s/g, ''),
-      `
-      const Foo = (props) => {
-        return <div>foo</div>
-      };
-      Foo.displayName = 'Foo';
-    `.replace(/\s/g, ''),
-    )
-  })
+  it('works with retyped memo, generics and named function expressions', async t => {
+    const read = resolve(import.meta.dirname, './fixtures/typed.tsx')
+    const write = resolve(import.meta.dirname, './fixtures/typed-modified.tsx')
+    const code = await modifyFile(read)
 
-  it.skip('works with retyped memo, generics and named function expressions', async () => {
-    const file = resolve(import.meta.dirname, './fixtures/typed.tsx')
-    const code = await modifyFile(file)
+    t.after(async () => {
+      await rm(write, { force: true })
+    })
+
+    await writeFile(write, code)
 
     assert.ok(code.indexOf("Items.displayName = 'Items'") === -1)
-    assert.ok(code.indexOf('displayName') === -1)
+    const { status: lint } = spawnSync('eslint', [write], { stdio: 'inherit' })
+    assert.equal(lint, 0)
+    const { status: types } = spawnSync(
+      'tsc',
+      ['--noEmit', '--project', 'test/tsconfig.json'],
+      { stdio: 'inherit' },
+    )
+    assert.equal(types, 0)
+  })
+
+  it('works with lists', async t => {
+    const read = resolve(import.meta.dirname, './fixtures/list.tsx')
+    const write = resolve(import.meta.dirname, './fixtures/list-modified.tsx')
+    const code = await modifyFile(read)
+
+    t.after(async () => {
+      await rm(write, { force: true })
+    })
+
+    await writeFile(write, code)
+
+    assert.equal([...code.matchAll(/List.displayName = 'List'/g)].length, 1)
+    const { status: lint } = spawnSync('eslint', [write], { stdio: 'inherit' })
+    assert.equal(lint, 0)
+    const { status: types } = spawnSync(
+      'tsc',
+      ['--noEmit', '--project', 'test/tsconfig.json'],
+      { stdio: 'inherit' },
+    )
+    assert.equal(types, 0)
+  })
+
+  it.skip('works with params shadowing', async t => {
+    // @TODO collect coverage for params scopes
+    const read = resolve(import.meta.dirname, './fixtures/params.tsx')
+    const write = resolve(import.meta.dirname, './fixtures/params-modified.tsx')
+    const code = await modifyFile(read)
+
+    t.after(async () => {
+      await rm(write, { force: true })
+    })
+
+    await writeFile(write, code)
   })
 })

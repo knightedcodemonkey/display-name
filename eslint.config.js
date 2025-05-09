@@ -26,16 +26,21 @@ export default tseslint.config(
     files: ['test/fixtures/**/*.{js,tsx}'],
     settings: {
       react: {
-        version: '16.12.0',
+        version: 'detect',
       },
     },
     plugins: {
       react,
     },
     rules: {
-      'react/display-name': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       'n/no-missing-import': 'off',
+    },
+  },
+  {
+    files: ['test/fixtures/*-modified.tsx'],
+    rules: {
+      'react/display-name': 'error',
     },
   },
   {

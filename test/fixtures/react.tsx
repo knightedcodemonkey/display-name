@@ -1,14 +1,14 @@
-import React, { memo, forwardRef } from 'react'
+import React, { memo, forwardRef, type FC } from 'react'
 
 const Foo = () => {
   return <div>foo</div>
 }
 
-const Bar = function Bar(props) {
+const Bar: FC = function Bar(props) {
   return <span>stuff</span>
 }
 
-const Baz = function (props) {
+const Baz = function (props: object) {
   return <p>baz</p>
 }
 
@@ -39,11 +39,11 @@ const NestedMemo = () => {
   return <NestedChild />
 }
 const NestedForwardRef = () => {
-  const NestedChild = forwardRef<HTMLDivElement, object>((props, ref) => {
+  const NestedChildDuex = forwardRef<HTMLDivElement, object>((props, ref) => {
     return <div ref={ref}>nested</div>
   })
 
-  return <NestedChild />
+  return <NestedChildDuex />
 }
 const FuncExpr = memo(function () {
   return <div>func expr</div>
@@ -83,9 +83,21 @@ const MissingNestedDisplayName = {
   }),
 }
 
+const NestedMissingDisplayName = {
+  Outer: {
+    NestedDuex: memo(() => null),
+  },
+}
+
 type ForwardRefObject = {
   forwardRef: (cb: (props: object, ref: object) => React.ReactNode) => React.ReactNode
 }
+/**
+ * There is a bug in eslint-plugin-react that causes false positives
+ * when React is shadowed by a variable in the same scope.
+ *
+ * @see https://github.com/jsx-eslint/eslint-plugin-react/issues/3924
+ */
 const MixedShadowed = function () {
   const memo = (cb: () => React.ReactNode) => cb()
   const { forwardRef } = { forwardRef: () => null } as ForwardRefObject
@@ -94,7 +106,9 @@ const MixedShadowed = function () {
   const Comp = memo(() => {
     return <div>shadowed</div>
   })
+  // eslint-disable-next-line react/display-name
   const ReactMemo = React.memo(() => null)
+  // eslint-disable-next-line react/display-name
   const ReactForward = React.forwardRef((props, ref) => {
     return `${props} ${ref}`
   })
@@ -136,6 +150,7 @@ export {
   ReactForwardRef,
   ReactForwardRefNested,
   MissingNestedDisplayName,
+  NestedMissingDisplayName,
   Mixed,
   Shadowed,
   A,

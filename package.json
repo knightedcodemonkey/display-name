@@ -23,10 +23,12 @@
   "engineStrict": true,
   "scripts": {
     "build": "duel",
+    "check-types": "tsc --noEmit",
     "lint": "eslint .",
     "prettier": "prettier -w .",
     "prepack": "npm run build",
-    "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts"
+    "test": "c8 --reporter=text --reporter=text-summary --reporter=lcov tsx --test --test-reporter=spec test/*.ts",
+    "test:check-types": "tsc --noEmit --project test/tsconfig.json"
   },
   "keywords": [
     "codemod",

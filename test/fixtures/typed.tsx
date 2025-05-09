@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import React, { useRef, useLayoutEffect, useState, memo } from 'react'
 
 type ItemsProps<T> = {

@@ -5,9 +5,6 @@ import { asyncAncestorWalk, ancestorWalk, walk } from '@knighted/walk'
 import {
   parseSync,
   type Node,
-  type FunctionBody,
-  type Expression,
-  type VariableDeclarator,
   type CallExpression,
   type IdentifierName,
 } from 'oxc-parser'
@@ -22,12 +19,17 @@ type Scope = {
   type: string
   pragmas: Set<string>
 }
+type Pragma = (typeof pragmas)[number]
 
 const pascal = /^[A-Z][a-zA-Z0-9]*$/
+const pragmas = ['React', 'memo', 'forwardRef'] as const
+const isPragma = (name: string): name is Pragma => {
+  return pragmas.includes(name as Pragma)
+}
 const isIdentifierName = (node: Node): node is IdentifierName => {
   return node.type === 'Identifier' && typeof node.name === 'string'
 }
-const collectDisplayNames = async (node: Node) => {
+const collectDisplayNames = async (node: Node, code: MagicString) => {
   const foundDisplayNames: string[] = []
 
   await ancestorWalk(node, {
@@ -45,12 +47,8 @@ const collectDisplayNames = async (node: Node) => {
             foundDisplayNames.push(parent.object.name)
           }
 
-          // Consider namespaced components
-          if (
-            parent.object.type === 'MemberExpression' &&
-            parent.object.property.type === 'Identifier'
-          ) {
-            foundDisplayNames.push(parent.object.property.name)
+          if (parent.object.type === 'MemberExpression') {
+            foundDisplayNames.push(code.slice(parent.object.start, parent.object.end))
           }
         }
       }
@@ -58,30 +56,6 @@ const collectDisplayNames = async (node: Node) => {
   })
 
   return foundDisplayNames
-}
-/**
- * Useful for preventing mapped JSX lists inside functions from creating
- * a displayName when inside a named function.
- *
- * A simpler fix would be to add the found named function to `foundDisplayNames`
- * but that would prevent reusing a displayName for named functions
- * (which seems like a bad practice overall).
- */
-const createsNamedReactFunction = (declarator: VariableDeclarator) => {
-  if (declarator.init) {
-    if (declarator.init.type === 'FunctionExpression' && declarator.init.id) {
-      return true
-    }
-
-    if (
-      declarator.init.type === 'CallExpression' &&
-      declarator.init.arguments.some(arg => arg.type === 'FunctionExpression' && arg.id)
-    ) {
-      return true
-    }
-  }
-
-  return false
 }
 const collectReactPragmas = async (node: Node) => {
   let isReact = false
@@ -121,21 +95,16 @@ const collectReactPragmas = async (node: Node) => {
 
   return { isReact, isReactMemo, isReactForwardRef }
 }
-const isPragmaShadowed = (pragma: 'React' | 'memo' | 'forwardRef', scopes: Scope[]) => {
+const isPragmaShadowed = (pragma: Pragma, scopes: Scope[]) => {
   for (const scope of scopes) {
     if (scope.pragmas.has(pragma)) {
-      console.log('shadowed', scopes)
       return true
     }
   }
 
   return false
 }
-const isReactMember = (
-  pragma: 'memo' | 'forwardRef',
-  node: CallExpression,
-  scopes: Scope[],
-) => {
+const isReactMember = (pragma: Pragma, node: CallExpression, scopes: Scope[]) => {
   const { callee } = node
 
   return (
@@ -175,7 +144,6 @@ const hasNestedForwardRef = (node: CallExpression, scopes: Scope[]) => {
 const isMemoWrapped = (parent: Node, scopes: Scope[]) => {
   return parent.type === 'CallExpression' && isMemo(parent, scopes)
 }
-const pragmas = ['React', 'memo', 'forwardRef']
 const scopeNodes = [
   'FunctionDeclaration',
   'FunctionExpression',
@@ -201,12 +169,13 @@ const modify = async (source: string, options: Options = defaultOptions) => {
   )
 
   if (isReact || isReactMemo || isReactForwardRef) {
-    const foundDisplayNames = await collectDisplayNames(ast.program)
+    const scopes: Scope[] = []
+    const foundDisplayNames = await collectDisplayNames(ast.program, code)
     const opts = {
       ...defaultOptions,
       ...options,
     }
-    const addDisplayName = (ancestors: Node[]) => {
+    const addDisplayName = (ancestors: Node[], call: CallExpression) => {
       const declaratorIndex = ancestors.findLastIndex(
         ancestor => ancestor.type === 'VariableDeclarator',
       )
@@ -217,26 +186,52 @@ const modify = async (source: string, options: Options = defaultOptions) => {
         if (
           declarator.type === 'VariableDeclarator' &&
           declarator.id.type === 'Identifier' &&
-          !foundDisplayNames.includes(declarator.id.name)
-          //!createsNamedReactFunction(declarator)
+          declarator.init
         ) {
-          const { name } = declarator.id
-          const declaration = ancestors[declaratorIndex - 1]
+          let { name } = declarator.id
+          const declName = name
+          const append = (displayName: string) => {
+            const declaration = ancestors[declaratorIndex - 1]
 
-          if (
-            declaration.type === 'VariableDeclaration' &&
-            (!opts.requirePascal || pascal.test(name))
-          ) {
-            code.appendRight(
-              declaration.end,
-              `\n${name}.displayName = '${name}'${opts.insertSemicolon ? ';' : ''}`,
-            )
-            foundDisplayNames.push(name)
+            if (
+              declaration.type === 'VariableDeclaration' &&
+              (!opts.requirePascal || pascal.test(declName))
+            ) {
+              code.appendRight(
+                declaration.end,
+                `\n${displayName}.displayName = '${displayName}'${opts.insertSemicolon ? ';' : ''}`,
+              )
+              foundDisplayNames.push(displayName)
+            }
+          }
+
+          // Pragma directly assigned to a variable
+          if (declarator.init === call && !foundDisplayNames.includes(name)) {
+            append(name)
+          }
+
+          // Pragma assigned to some object property
+          if (declarator.init.type === 'ObjectExpression') {
+            let parent = ancestors[ancestors.length - 2]
+            const keys: string[] = []
+
+            while (parent && parent !== declarator) {
+              if (parent.type === 'Property' && parent.key.type === 'Identifier') {
+                keys.push(parent.key.name)
+              }
+
+              parent = ancestors[ancestors.indexOf(parent) - 1]
+            }
+
+            name = `${name}.${keys.reverse().join('.')}`
+
+            if (!foundDisplayNames.includes(name)) {
+              append(name)
+            }
           }
         }
       }
     }
-    const scopes: Scope[] = []
 
     await asyncAncestorWalk(ast.program, {
       async enter(node, ancestors) {
@@ -266,21 +261,17 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             })
             .filter(isIdentifierName)
             .forEach(param => {
-              if (pragmas.includes(param.name)) {
+              if (isPragma(param.name)) {
                 scope.pragmas.add(param.name)
               }
             })
 
-          if (
-            node.type === 'FunctionExpression' &&
-            node.id &&
-            pragmas.includes(node.id.name)
-          ) {
+          if (node.type === 'FunctionExpression' && node.id && isPragma(node.id.name)) {
             scope.pragmas.add(node.id.name)
           }
 
           // First add the function to any previous scopes
-          if (scopes.length > 0 && pragmas.includes(name)) {
+          if (scopes.length > 0 && isPragma(name)) {
             scopes[scopes.length - 1].pragmas.add(name)
           }
 
@@ -294,7 +285,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             const scope = scopes[scopes.length - 1]
 
             node.declarations.forEach(decl => {
-              if (decl.id.type === 'Identifier' && pragmas.includes(decl.id.name)) {
+              if (decl.id.type === 'Identifier' && isPragma(decl.id.name)) {
                 scope.pragmas.add(decl.id.name)
               }
 
@@ -303,7 +294,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
                   if (
                     prop.type === 'Property' &&
                     prop.key.type === 'Identifier' &&
-                    pragmas.includes(prop.key.name)
+                    isPragma(prop.key.name)
                   ) {
                     scope.pragmas.add(prop.key.name)
                   }
@@ -312,7 +303,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
 
               if (decl.id.type === 'ArrayPattern') {
                 decl.id.elements.forEach(element => {
-                  if (element?.type === 'Identifier' && pragmas.includes(element.name)) {
+                  if (element?.type === 'Identifier' && isPragma(element.name)) {
                     scope.pragmas.add(element.name)
                   }
                 })
@@ -332,19 +323,16 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             const nestedForwardRef = hasNestedForwardRef(node, scopes)
 
             if (!nestedForwardRef || (nestedForwardRef && opts.modifyNestedForwardRef)) {
-              addDisplayName(ancestors)
+              addDisplayName(ancestors, node)
             }
           }
 
           if (isForwardRef(node, scopes)) {
-            if (node.start === 2389) {
-              console.log('SCOPES', scopes)
-            }
             const parent = ancestors[ancestors.length - 2]
             const memoWrapped = isMemoWrapped(parent, scopes)
 
             if (!memoWrapped || (memoWrapped && opts.modifyNestedForwardRef)) {
-              addDisplayName(ancestors)
+              addDisplayName(ancestors, node)
             }
           }
         }
