@@ -22,9 +22,9 @@ const codemod = await modify(`
     return <div>foo</div>
   }
 
-  const Bar = function Bar(props) {
+  const Bar = memo(function Bar(props) {
     return <span>stuff</span>
-  }
+  })
 
   const Baz = memo(() => {
     return <p>baz</p>
@@ -39,11 +39,10 @@ import { memo } from 'react'
 const Foo = () => {
   return <div>foo</div>
 }
-Foo.displayName = 'Foo';
 
-const Bar = function Bar(props) {
+const Bar = memo(function Bar(props) {
   return <span>bar</span>
-}
+})
 
 const Baz = memo(() => {
   return <p>baz</p>
