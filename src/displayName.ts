@@ -19,13 +19,13 @@ type Scope = {
   type: string
   pragmas: Set<string>
 }
-type Pragma = (typeof pragmas)[number]
+type Pragmas = {
+  react: string
+  memo: string
+  forwardRef: string
+}
 
 const pascal = /^[A-Z][a-zA-Z0-9]*$/
-const pragmas = ['React', 'memo', 'forwardRef'] as const
-const isPragma = (name: string): name is Pragma => {
-  return pragmas.includes(name as Pragma)
-}
 const isIdentifierName = (node: Node): node is IdentifierName => {
   return node.type === 'Identifier' && typeof node.name === 'string'
 }
@@ -58,34 +58,28 @@ const collectDisplayNames = async (node: Node, code: MagicString) => {
   return foundDisplayNames
 }
 const detectReactPragmas = async (node: Node) => {
-  let isReact = false
-  let isReactMemo = false
-  let isReactForwardRef = false
+  let react = ''
+  let memo = ''
+  let forwardRef = ''
 
   await walk(node, {
     enter(node) {
       if (node.type === 'ImportDeclaration' && node.source.value === 'react') {
         for (const specifier of node.specifiers) {
-          if (
-            specifier.type === 'ImportDefaultSpecifier' &&
-            specifier.local.name === 'React'
-          ) {
-            isReact = true
+          if (specifier.type === 'ImportDefaultSpecifier') {
+            react = specifier.local.name
           }
 
           if (
             specifier.type === 'ImportSpecifier' &&
             specifier.imported.type === 'Identifier'
           ) {
-            if (specifier.imported.name === 'memo' && specifier.local.name === 'memo') {
-              isReactMemo = true
+            if (specifier.imported.name === 'memo') {
+              memo = specifier.local.name
             }
 
-            if (
-              specifier.imported.name === 'forwardRef' &&
-              specifier.local.name === 'forwardRef'
-            ) {
-              isReactForwardRef = true
+            if (specifier.imported.name === 'forwardRef') {
+              forwardRef = specifier.local.name
             }
           }
         }
@@ -93,9 +87,9 @@ const detectReactPragmas = async (node: Node) => {
     },
   })
 
-  return { isReact, isReactMemo, isReactForwardRef }
+  return { react, memo, forwardRef }
 }
-const isPragmaShadowed = (pragma: Pragma, scopes: Scope[]) => {
+const isPragmaShadowed = (pragma: string, scopes: Scope[]) => {
   for (const scope of scopes) {
     if (scope.pragmas.has(pragma)) {
       return true
@@ -104,40 +98,45 @@ const isPragmaShadowed = (pragma: Pragma, scopes: Scope[]) => {
 
   return false
 }
-const isReactMember = (pragma: Pragma, node: CallExpression, scopes: Scope[]) => {
+const isReactMember = (
+  pragma: string,
+  node: CallExpression,
+  pragmas: Pragmas,
+  scopes: Scope[],
+) => {
   const { callee } = node
 
   return (
     callee.type === 'MemberExpression' &&
     callee.object.type === 'Identifier' &&
-    callee.object.name === 'React' &&
-    !isPragmaShadowed('React', scopes) &&
+    callee.object.name === pragmas.react &&
     callee.property.type === 'Identifier' &&
-    callee.property.name === pragma
+    callee.property.name === pragma &&
+    !isPragmaShadowed(pragmas.react, scopes)
   )
 }
-const isMemo = (node: CallExpression, scopes: Scope[]) => {
+const isMemo = (node: CallExpression, pragmas: Pragmas, scopes: Scope[]) => {
   const { callee } = node
 
   return (
     (callee.type === 'Identifier' &&
-      callee.name === 'memo' &&
-      !isPragmaShadowed('memo', scopes)) ||
-    isReactMember('memo', node, scopes)
+      callee.name === pragmas.memo &&
+      !isPragmaShadowed(pragmas.memo, scopes)) ||
+    isReactMember('memo', node, pragmas, scopes)
   )
 }
-const isForwardRef = (node: CallExpression, scopes: Scope[]) => {
+const isForwardRef = (node: CallExpression, pragmas: Pragmas, scopes: Scope[]) => {
   const { callee } = node
 
   return (
     (callee.type === 'Identifier' &&
-      callee.name === 'forwardRef' &&
-      !isPragmaShadowed('forwardRef', scopes)) ||
-    isReactMember('forwardRef', node, scopes)
+      callee.name === pragmas.forwardRef &&
+      !isPragmaShadowed(pragmas.forwardRef, scopes)) ||
+    isReactMember('forwardRef', node, pragmas, scopes)
   )
 }
-const isMemoWrapped = (parent: Node, scopes: Scope[]) => {
-  return parent.type === 'CallExpression' && isMemo(parent, scopes)
+const isMemoWrapped = (parent: Node, pragmas: Pragmas, scopes: Scope[]) => {
+  return parent.type === 'CallExpression' && isMemo(parent, pragmas, scopes)
 }
 const scopeNodes = [
   'FunctionDeclaration',
@@ -159,11 +158,13 @@ const defaultOptions = {
 const modify = async (source: string, options: Options = defaultOptions) => {
   const ast = parseSync('file.tsx', source)
   const code = new MagicString(source)
-  const { isReact, isReactMemo, isReactForwardRef } = await detectReactPragmas(
-    ast.program,
-  )
+  const { react, memo, forwardRef } = await detectReactPragmas(ast.program)
+  const pragmas = { react, memo, forwardRef } satisfies Pragmas
+  const isPragma = (name: string) => {
+    return name === react || name === memo || name === forwardRef
+  }
 
-  if (isReact || isReactMemo || isReactForwardRef) {
+  if (react || memo || forwardRef) {
     const scopes: Scope[] = []
     const foundDisplayNames = await collectDisplayNames(ast.program, code)
     const opts = {
@@ -321,13 +322,13 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             node.arguments[0].type === 'ArrowFunctionExpression') &&
           !node.arguments[0].id
         ) {
-          if (isMemo(node, scopes)) {
+          if (isMemo(node, pragmas, scopes)) {
             addDisplayName(ancestors, node)
           }
 
-          if (isForwardRef(node, scopes)) {
+          if (isForwardRef(node, pragmas, scopes)) {
             const parent = ancestors[ancestors.length - 2]
-            const memoWrapped = isMemoWrapped(parent, scopes)
+            const memoWrapped = isMemoWrapped(parent, pragmas, scopes)
 
             if (!memoWrapped || (memoWrapped && opts.modifyNestedForwardRef)) {
               addDisplayName(ancestors, node, memoWrapped)

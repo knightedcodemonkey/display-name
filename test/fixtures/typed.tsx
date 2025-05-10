@@ -1,6 +1,7 @@
-import React, { useRef, useLayoutEffect, useState, memo } from 'react'
+import { useRef, useLayoutEffect, useState, memo } from 'react'
 
 type ItemsProps<T> = {
+  items: T[]
   hasMore?: boolean
 }
 const typedMemo: <T>(c: T) => T = memo
@@ -16,7 +17,7 @@ const Other = memo((props: { items: string[] }) => {
 const Items = typedMemo(function Items<T>(props: ItemsProps<T>) {
   const ref = useRef<HTMLUListElement>(null)
   const [hasMore, setHasMore] = useState(props.hasMore ?? true)
-  const items = ['a', 'b', 'c']
+  const items = props.items
   const items2 = ['d', 'e', 'f']
 
   useLayoutEffect(() => {
@@ -52,10 +53,10 @@ const Items = typedMemo(function Items<T>(props: ItemsProps<T>) {
   return (
     <ul ref={ref}>
       {items.map((item, index) => {
-        const isSelected = items2.includes(item)
+        const isSelected = index % 2 === 0
         return (
           <li key={index} className={isSelected ? 'selected' : ''}>
-            {item}
+            {typeof item === 'string' ? item : 'unknown'}
           </li>
         )
       })}
