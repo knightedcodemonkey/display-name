@@ -57,7 +57,7 @@ const collectDisplayNames = async (node: Node, code: MagicString) => {
 
   return foundDisplayNames
 }
-const collectReactPragmas = async (node: Node) => {
+const detectReactPragmas = async (node: Node) => {
   let isReact = false
   let isReactMemo = false
   let isReactForwardRef = false
@@ -164,7 +164,7 @@ const defaultOptions = {
 const modify = async (source: string, options: Options = defaultOptions) => {
   const ast = parseSync('file.tsx', source)
   const code = new MagicString(source)
-  const { isReact, isReactMemo, isReactForwardRef } = await collectReactPragmas(
+  const { isReact, isReactMemo, isReactForwardRef } = await detectReactPragmas(
     ast.program,
   )
 
