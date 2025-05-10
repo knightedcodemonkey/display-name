@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react'
+import { forwardRef } from 'react'
 
 const List = forwardRef<HTMLUListElement, object>((props, ref) => {
   const items = ['a', 'b', 'c']

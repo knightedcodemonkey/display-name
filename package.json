@@ -1,6 +1,6 @@
 {
   "name": "@knighted/display-name",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Codemod to add a React displayName to function components.",
   "type": "module",
   "exports": {
@@ -51,7 +51,7 @@
   "dependencies": {
     "@knighted/walk": "^1.0.0-rc.2",
     "magic-string": "^0.30.17",
-    "oxc-parser": "^0.68.1"
+    "oxc-parser": "^0.69.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.26.0",
