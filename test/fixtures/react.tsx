@@ -12,7 +12,7 @@ const Baz = function (props: object) {
   return <p>baz</p>
 }
 
-const Qux = memo(() => {
+const Memo = memo(() => {
   return (
     <div>
       {'qux'}
@@ -21,13 +21,13 @@ const Qux = memo(() => {
   )
 })
 
-const Quxx = memo(
+const MemoWrappedForward = memo(
   forwardRef<HTMLDivElement, object>((props, ref) => {
     return <div ref={ref}>quxx</div>
   }),
 )
 
-const Ref = forwardRef<HTMLDivElement, object>((props, ref) => {
+const ForwardRef = forwardRef<HTMLDivElement, object>((props, ref) => {
   return <div ref={ref}>ref</div>
 })
 
@@ -103,18 +103,18 @@ const MixedShadowed = function () {
   const { forwardRef } = { forwardRef: () => null } as ForwardRefObject
   const [React] = [{ memo, forwardRef }] as const
 
-  const Comp = memo(() => {
+  const ShadowedMemo = memo(() => {
     return <div>shadowed</div>
   })
   // eslint-disable-next-line react/display-name
-  const ReactMemo = React.memo(() => null)
+  const ShadowedReactMemo = React.memo(() => null)
   // eslint-disable-next-line react/display-name
-  const ReactForward = React.forwardRef((props, ref) => {
+  const ShadowedReactForward = React.forwardRef((props, ref) => {
     return `${props} ${ref}`
   })
-  const OtherComp = forwardRef((props, ref) => `${props} ${ref}`)
+  const ShadowedForward = forwardRef((props, ref) => `${props} ${ref}`)
 
-  return [Comp, ReactMemo, ReactForward, OtherComp]
+  return [ShadowedMemo, ShadowedReactMemo, ShadowedReactForward, ShadowedForward]
 }
 
 const Shadowed = function () {
@@ -138,9 +138,9 @@ export {
   Foo,
   Bar,
   Baz,
-  Qux,
-  Quxx,
-  Ref,
+  Memo,
+  MemoWrappedForward,
+  ForwardRef,
   NestedMemo,
   NestedForwardRef,
   FuncExpr,
