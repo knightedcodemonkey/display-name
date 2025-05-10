@@ -136,11 +136,6 @@ const isForwardRef = (node: CallExpression, scopes: Scope[]) => {
     isReactMember('forwardRef', node, scopes)
   )
 }
-const hasNestedForwardRef = (node: CallExpression, scopes: Scope[]) => {
-  const arg = node.arguments[0]
-
-  return arg.type === 'CallExpression' && isForwardRef(arg, scopes)
-}
 const isMemoWrapped = (parent: Node, scopes: Scope[]) => {
   return parent.type === 'CallExpression' && isMemo(parent, scopes)
 }
@@ -175,7 +170,11 @@ const modify = async (source: string, options: Options = defaultOptions) => {
       ...defaultOptions,
       ...options,
     }
-    const addDisplayName = (ancestors: Node[], call: CallExpression) => {
+    const addDisplayName = (
+      ancestors: Node[],
+      call: CallExpression,
+      memoWrapped = false,
+    ) => {
       const declaratorIndex = ancestors.findLastIndex(
         ancestor => ancestor.type === 'VariableDeclarator',
       )
@@ -205,8 +204,11 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             }
           }
 
-          // Pragma directly assigned to a variable
-          if (declarator.init === call && !foundDisplayNames.includes(name)) {
+          // Pragma directly assigned to a variable or forwardRef wrapped with memo
+          if (
+            (declarator.init === call || memoWrapped) &&
+            !foundDisplayNames.includes(name)
+          ) {
             append(name)
           }
 
@@ -320,11 +322,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
           !node.arguments[0].id
         ) {
           if (isMemo(node, scopes)) {
-            const nestedForwardRef = hasNestedForwardRef(node, scopes)
-
-            if (!nestedForwardRef || (nestedForwardRef && opts.modifyNestedForwardRef)) {
-              addDisplayName(ancestors, node)
-            }
+            addDisplayName(ancestors, node)
           }
 
           if (isForwardRef(node, scopes)) {
@@ -332,7 +330,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             const memoWrapped = isMemoWrapped(parent, scopes)
 
             if (!memoWrapped || (memoWrapped && opts.modifyNestedForwardRef)) {
-              addDisplayName(ancestors, node)
+              addDisplayName(ancestors, node, memoWrapped)
             }
           }
         }

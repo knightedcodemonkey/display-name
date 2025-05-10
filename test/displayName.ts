@@ -160,6 +160,21 @@ describe('@knighted/displayName', () => {
     assert.ok(code.indexOf("Qux.displayName = 'Qux'") === -1)
   })
 
+  it('has option to add displayName for wrapped forwardRef', async () => {
+    const src = `
+      import { forwardRef, memo } from 'react'
+
+      const WrappedForwardRef = memo(forwardRef(() => {
+        return <div>foo</div>
+      }))
+    `
+    let code = await modify(src, { modifyNestedForwardRef: true })
+
+    assert.ok(code.indexOf("WrappedForwardRef.displayName = 'WrappedForwardRef'") !== -1)
+    code = await modify(src, { modifyNestedForwardRef: false })
+    assert.ok(code.indexOf("WrappedForwardRef.displayName = 'WrappedForwardRef'") === -1)
+  })
+
   it.skip('works with params shadowing', async t => {
     // @TODO collect coverage for params scopes
     const read = resolve(import.meta.dirname, './fixtures/params.tsx')
