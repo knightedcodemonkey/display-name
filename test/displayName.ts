@@ -272,6 +272,41 @@ describe('@knighted/displayName', () => {
     assert.ok(code.indexOf("Qux.displayName = 'Qux'") !== -1)
     assert.ok(code.indexOf("Qux2.displayName = 'Qux2'") !== -1)
     assert.ok(code.indexOf("Qux3.displayName = 'Qux3'") !== -1)
+
+    src = `
+      import ReactAlias, { memo as me, forwardRef as fr } from 'react'
+      
+      function ShadowedReact() {
+        const ReactAlias = { memo: () => {}, forwardRef: () => {} }
+        const Foo = ReactAlias.memo(() => {
+          return <div>foo</div>
+        })
+        const Qux = ReactAlias.forwardRef(() => {
+          return <span>qux</span>
+        })
+        const Memo = me(() => {
+          return <div>foo</div>
+        })
+      }
+      function ShadowedMemo() {
+        const me = () => {}
+        const Bar = me(() => {
+          return <div>bar</div>
+        })
+      }
+      function ShadowedForwardRef() {
+        const fr = () => {}
+        const Baz = fr(() => {
+          return <div>baz</div>
+        })
+      }
+    `
+    code = await modify(src)
+    assert.ok(code.indexOf("Foo.displayName = 'Foo'") === -1)
+    assert.ok(code.indexOf("Bar.displayName = 'Bar'") === -1)
+    assert.ok(code.indexOf("Baz.displayName = 'Baz'") === -1)
+    assert.ok(code.indexOf("Qux.displayName = 'Qux'") === -1)
+    assert.ok(code.indexOf("Memo.displayName = 'Memo'") !== -1)
   })
 
   it('works with params shadowing', async () => {
