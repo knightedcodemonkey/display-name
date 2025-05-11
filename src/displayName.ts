@@ -208,6 +208,11 @@ const modify = async (source: string, options: Options = defaultOptions) => {
                       const params = func.params.map(param =>
                         code.slice(param.start, param.end),
                       )
+                      /**
+                       * Inside a function expression, the body is always a block statement.
+                       * I think the types for oxc-parser can be improved.
+                       * @see https://github.com/oxc-project/oxc/pull/9128#issuecomment-2870220468
+                       */
                       const body = func.body
                         ? code.slice(func.body.start, func.body.end)
                         : '{}'

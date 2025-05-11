@@ -482,6 +482,38 @@ describe('@knighted/displayName', () => {
         })
       `.replace(/\s+/g, ''),
     )
+
+    src = `
+      import React from 'react'
+      const Hello = React.memo(({ a }) => {
+        return <>{a}</>
+      })
+    `
+    code = await modify(src, { style: 'namedFuncExpr' })
+    assert.equal(
+      code.replace(/\s+/g, ''),
+      `
+        import React from 'react'
+        const Hello = React.memo(function Hello({ a }) {
+          return <>{a}</>
+        })
+      `.replace(/\s+/g, ''),
+    )
+
+    src = `
+      import {forwardRef} from 'react'
+      const Fr = forwardRef(({ a }) => <>{a}</>)
+    `
+    code = await modify(src, { style: 'namedFuncExpr' })
+    assert.equal(
+      code.replace(/\s+/g, ''),
+      `
+        import {forwardRef} from 'react'
+        const Fr = forwardRef(function Fr({ a }) {
+          return <>{a}</>
+        })
+      `.replace(/\s+/g, ''),
+    )
   })
 
   it('the style option works with namedFuncExpr', async t => {
