@@ -109,9 +109,7 @@ describe('@knighted/displayName', () => {
 
   it('requires memo, forwardRef or React to be in scope', async () => {
     const components = `
-      const Foo = memo(() => {
-        return <div>foo</div>
-      })
+      const Foo = memo(() => <div>foo</div>)
       const Bar = forwardRef(() => {
         return <span>bar</span>
       })
@@ -272,6 +270,41 @@ describe('@knighted/displayName', () => {
     assert.ok(code.indexOf("Qux.displayName = 'Qux'") !== -1)
     assert.ok(code.indexOf("Qux2.displayName = 'Qux2'") !== -1)
     assert.ok(code.indexOf("Qux3.displayName = 'Qux3'") !== -1)
+
+    src = `
+      import ReactAlias, { memo as me, forwardRef as fr } from 'react'
+      
+      function ShadowedReact() {
+        const ReactAlias = { memo: () => {}, forwardRef: () => {} }
+        const Foo = ReactAlias.memo(() => {
+          return <div>foo</div>
+        })
+        const Qux = ReactAlias.forwardRef(() => {
+          return <span>qux</span>
+        })
+        const Memo = me(() => {
+          return <div>foo</div>
+        })
+      }
+      function ShadowedMemo() {
+        const me = () => {}
+        const Bar = me(() => {
+          return <div>bar</div>
+        })
+      }
+      function ShadowedForwardRef() {
+        const fr = () => {}
+        const Baz = fr(() => {
+          return <div>baz</div>
+        })
+      }
+    `
+    code = await modify(src)
+    assert.ok(code.indexOf("Foo.displayName = 'Foo'") === -1)
+    assert.ok(code.indexOf("Bar.displayName = 'Bar'") === -1)
+    assert.ok(code.indexOf("Baz.displayName = 'Baz'") === -1)
+    assert.ok(code.indexOf("Qux.displayName = 'Qux'") === -1)
+    assert.ok(code.indexOf("Memo.displayName = 'Memo'") !== -1)
   })
 
   it('works with params shadowing', async () => {
@@ -335,5 +368,167 @@ describe('@knighted/displayName', () => {
     assert.ok(code.indexOf("Quxx.displayName = 'Quxx'") === -1)
     assert.ok(code.indexOf("Quxxx.displayName = 'Quxxx'") === -1)
     assert.ok(code.indexOf("Memo.displayName = 'Memo'") !== -1)
+  })
+
+  it('has option to use named function expressions', async () => {
+    let src = `
+      import { memo, forwardRef } from 'react'
+      const arePropsEqual = () => true
+      const Foo = memo((props) => {
+        return <div>foo</div>
+      }, arePropsEqual)
+      const Bar = forwardRef((props, ref) => {
+        return <span>bar</span>
+      })
+      const Baz = forwardRef<HTMLSpanElement, { foo: string }>((props, ref) => {
+        return <span ref={ref}>baz</span>
+      })
+    `
+    let code = await modify(src, { style: 'namedFuncExpr' })
+
+    assert.equal(
+      code.replace(/\s+/g, ''),
+      `
+        import { memo, forwardRef } from 'react'
+        const arePropsEqual = () => true
+        const Foo = memo(function Foo(props) {
+          return <div>foo</div>
+        }, arePropsEqual)
+        const Bar = forwardRef(function Bar(props, ref) {
+          return <span>bar</span>
+        })
+        const Baz = forwardRef<HTMLSpanElement, { foo: string }>(function Baz(props, ref) {
+          return <span ref={ref}>baz</span>
+        })
+      `.replace(/\s+/g, ''),
+    )
+
+    src = `
+      import { memo, forwardRef } from 'react'
+      const MemoWrapped = memo(forwardRef((props, ref) => {
+        return <p>foo</p>
+      }))
+    `
+    code = await modify(src, {
+      style: 'namedFuncExpr',
+      modifyNestedForwardRef: true,
+    })
+    assert.equal(
+      code.replace(/\s+/g, ''),
+      `
+        import { memo, forwardRef } from 'react'
+        const MemoWrapped = memo(forwardRef(function MemoWrapped(props, ref) {
+          return <p>foo</p>
+        }))
+      `.replace(/\s+/g, ''),
+    )
+
+    src = `
+      import { memo, forwardRef } from 'react'
+      const arePropsEqual = (prevProps: object, nextProps: object) => {
+        return prevProps === nextProps
+      }
+      const Namespaced = {
+        Foo: {
+          Bar: memo((props) => {
+            return <div>bar</div>
+          }, arePropsEqual),
+          Baz: forwardRef((props, ref) => {
+            return <span>baz</span>
+          }),
+        }
+      }
+    `
+    code = await modify(src, { style: 'namedFuncExpr' })
+    assert.equal(
+      code.replace(/\s+/g, ''),
+      `
+        import { memo, forwardRef } from 'react'
+        const arePropsEqual = (prevProps: object, nextProps: object) => {
+          return prevProps === nextProps
+        }
+        const Namespaced = {
+          Foo: {
+            Bar: memo(function Bar(props) {
+              return <div>bar</div>
+            }, arePropsEqual),
+            Baz: forwardRef(function Baz(props, ref) {
+              return <span>baz</span>
+            }),
+          }
+        }
+      `.replace(/\s+/g, ''),
+    )
+
+    src = `
+      import { memo, forwardRef } from 'react'
+      const A = memo(function (props) {
+        return <p>a</p>
+      }, arePropsEqual)
+      const B = forwardRef(function () {
+        return <p>b</p>
+      })
+    `
+    code = await modify(src, { style: 'namedFuncExpr' })
+    assert.equal(
+      code.replace(/\s+/g, ''),
+      `
+        import { memo, forwardRef } from 'react'
+        const A = memo(function A(props) {
+          return <p>a</p>
+        }, arePropsEqual)
+        const B = forwardRef(function B() {
+          return <p>b</p>
+        })
+      `.replace(/\s+/g, ''),
+    )
+  })
+
+  it('the style option works with namedFuncExpr', async t => {
+    const read = resolve(import.meta.dirname, './fixtures/style.tsx')
+    const write = resolve(import.meta.dirname, './fixtures/style-modified.tsx')
+    const code = await modifyFile(read, { style: 'namedFuncExpr' })
+    const normalized = code.replace(/\s+/g, '')
+
+    t.after(async () => {
+      await rm(write, { force: true })
+    })
+
+    await writeFile(write, code)
+
+    // A present displayName should not be modified
+    assert.ok(code.indexOf('function MemoDisplayName(props: Props)') === -1)
+    assert.ok(code.indexOf('function ReactMemoDisplayName(props: Props)') === -1)
+
+    // Check function expressions
+    assert.ok(
+      normalized.indexOf(
+        `
+        const FuncExpr = memo(function FuncExpr(props: Props) {
+          return <p>{props.foo}</p>
+        })
+      `.replace(/\s+/g, ''),
+      ) !== -1,
+    )
+
+    // Check function generators
+    assert.ok(
+      normalized.indexOf(
+        `
+        const GeneratorFuncExpr: FC<Props> = memo(function* GeneratorFuncExpr(props) {
+          yield <p>foo</p>
+        }, arePropsEqual)
+    `.replace(/\s+/g, ''),
+      ) !== -1,
+    )
+
+    const { status: lint } = spawnSync('eslint', [write], { stdio: 'inherit' })
+    assert.equal(lint, 0)
+    const { status: types } = spawnSync(
+      'tsc',
+      ['--noEmit', '--project', 'test/tsconfig.json'],
+      { stdio: 'inherit' },
+    )
+    assert.equal(types, 0)
   })
 })

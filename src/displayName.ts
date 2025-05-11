@@ -13,6 +13,7 @@ type Options = {
   requirePascal?: boolean
   insertSemicolon?: boolean
   modifyNestedForwardRef?: boolean
+  style?: 'displayName' | 'namedFuncExpr'
 }
 type Scope = {
   name: string
@@ -144,6 +145,7 @@ const scopeNodes = [
   'ArrowFunctionExpression',
 ]
 const defaultOptions = {
+  style: 'displayName',
   requirePascal: true,
   insertSemicolon: true,
   /**
@@ -190,17 +192,66 @@ const modify = async (source: string, options: Options = defaultOptions) => {
         ) {
           let { name } = declarator.id
           const declName = name
-          const append = (displayName: string) => {
+          const update = (displayName: string) => {
             const declaration = ancestors[declaratorIndex - 1]
 
             if (
               declaration.type === 'VariableDeclaration' &&
               (!opts.requirePascal || pascal.test(declName))
             ) {
-              code.appendRight(
-                declaration.end,
-                `\n${displayName}.displayName = '${displayName}'${opts.insertSemicolon ? ';' : ''}`,
-              )
+              if (opts.style === 'namedFuncExpr') {
+                const func = call.arguments[0]
+
+                switch (func.type) {
+                  case 'FunctionExpression':
+                    {
+                      const params = func.params.map(param =>
+                        code.slice(param.start, param.end),
+                      )
+                      const body = func.body
+                        ? code.slice(func.body.start, func.body.end)
+                        : '{}'
+                      const paramsWithBody = `${displayName}(${params.join(', ')}) ${body}`
+
+                      code.update(
+                        func.start,
+                        func.end,
+                        func.generator
+                          ? `function* ${paramsWithBody}`
+                          : `function ${paramsWithBody}`,
+                      )
+                    }
+                    break
+                  case 'ArrowFunctionExpression':
+                    {
+                      const params = func.params.map(param =>
+                        code.slice(param.start, param.end),
+                      )
+                      const body = code.slice(func.body.start, func.body.end)
+                      /**
+                       * If the body is an expression, it is the implicit return value.
+                       * @see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions#function_body
+                       */
+                      const bodyBlock =
+                        func.body.type === 'BlockStatement'
+                          ? body
+                          : `{\nreturn ${body}\n}`
+
+                      code.update(
+                        func.start,
+                        func.end,
+                        `function ${displayName}(${params.join(', ')}) ${bodyBlock}`,
+                      )
+                    }
+                    break
+                }
+              } else {
+                code.appendRight(
+                  declaration.end,
+                  `\n${displayName}.displayName = '${displayName}'${opts.insertSemicolon ? ';' : ''}`,
+                )
+              }
+
               foundDisplayNames.push(displayName)
             }
           }
@@ -210,7 +261,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             (declarator.init === call || memoWrapped) &&
             !foundDisplayNames.includes(name)
           ) {
-            append(name)
+            update(name)
           }
 
           // Pragma assigned to some object property
@@ -226,10 +277,13 @@ const modify = async (source: string, options: Options = defaultOptions) => {
               parent = ancestors[ancestors.indexOf(parent) - 1]
             }
 
-            name = `${name}.${keys.reverse().join('.')}`
+            name =
+              opts.style === 'displayName'
+                ? `${name}.${keys.reverse().join('.')}`
+                : keys[0]
 
             if (!foundDisplayNames.includes(name)) {
-              append(name)
+              update(name)
             }
           }
         }
@@ -330,7 +384,7 @@ const modify = async (source: string, options: Options = defaultOptions) => {
             const parent = ancestors[ancestors.length - 2]
             const memoWrapped = isMemoWrapped(parent, pragmas, scopes)
 
-            if (!memoWrapped || (memoWrapped && opts.modifyNestedForwardRef)) {
+            if (!memoWrapped || opts.modifyNestedForwardRef) {
               addDisplayName(ancestors, node, memoWrapped)
             }
           }
