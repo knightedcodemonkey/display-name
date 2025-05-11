@@ -34,3 +34,4 @@ jobs:
         with:
           token: ${{ secrets.NPM_AUTH_TOKEN }}
           access: public
+          tag: ${{ contains(github.ref, '-') && 'next' || 'latest' }}

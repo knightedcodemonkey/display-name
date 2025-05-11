@@ -39,6 +39,9 @@ const FuncExprForwardRefReact = React.forwardRef<HTMLParagraphElement, Props>(
     return <p ref={ref}>{props.foo}</p>
   },
 )
+const Hello = React.memo(({ a }: { a: string }) => {
+  return <>{a}</>
+})
 
 // These already have a display name.
 const MemoDisplayName = memo((props: Props) => {
